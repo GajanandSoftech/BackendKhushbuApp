@@ -47,7 +47,8 @@ const register = async (req, res, next) => {
         name: user.name,
         phone: user.phone,
         email: user.email,
-        role: user.role
+        role: user.role,
+        is_active: user.is_active
       }
     });
   } catch (error) {
@@ -88,115 +89,8 @@ const login = async (req, res, next) => {
         name: user.name,
         phone: user.phone,
         email: user.email,
-        role: user.role
-      }
-    });
-  } catch (error) {
-    next(error);
-  }
-};
-
-// Send OTP
-const sendOTP = async (req, res, next) => {
-  try {
-    const { phone } = req.body;
-
-    // Generate 6-digit OTP
-    const otp = Math.floor(100000 + Math.random() * 900000).toString();
-    const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
-
-    // Store OTP in database
-    const { error } = await supabase
-      .from('otp_verifications')
-      .upsert({
-        phone,
-        otp,
-        expires_at: expiresAt.toISOString()
-      }, {
-        onConflict: 'phone'
-      });
-
-    if (error) throw error;
-
-    // TODO: Integrate SMS service (Twilio, AWS SNS, etc.)
-    console.log(`OTP for ${phone}: ${otp}`);
-
-    res.json({
-      message: 'OTP sent successfully',
-      // For development only - remove in production
-      ...(process.env.NODE_ENV === 'development' && { otp })
-    });
-  } catch (error) {
-    next(error);
-  }
-};
-
-// Verify OTP
-const verifyOTP = async (req, res, next) => {
-  try {
-    const { phone, otp } = req.body;
-
-    // Get OTP from database
-    const { data: otpRecord, error } = await supabase
-      .from('otp_verifications')
-      .select('*')
-      .eq('phone', phone)
-      .single();
-
-    if (error || !otpRecord) {
-      return res.status(400).json({ error: 'Invalid OTP' });
-    }
-
-    // Check if OTP expired
-    if (new Date() > new Date(otpRecord.expires_at)) {
-      return res.status(400).json({ error: 'OTP expired' });
-    }
-
-    // Verify OTP
-    if (otpRecord.otp !== otp) {
-      return res.status(400).json({ error: 'Invalid OTP' });
-    }
-
-    // Check if user exists
-    let { data: user } = await supabase
-      .from('users')
-      .select('*')
-      .eq('phone', phone)
-      .single();
-
-    // If user doesn't exist, create one
-    if (!user) {
-      const { data: newUser, error: createError } = await supabase
-        .from('users')
-        .insert({
-          phone,
-          role: 'user'
-        })
-        .select()
-        .single();
-
-      if (createError) throw createError;
-      user = newUser;
-    }
-
-    // Delete OTP record
-    await supabase
-      .from('otp_verifications')
-      .delete()
-      .eq('phone', phone);
-
-    // Generate token
-    const token = generateToken(user.id, user.role);
-
-    res.json({
-      message: 'OTP verified successfully',
-      token,
-      user: {
-        id: user.id,
-        name: user.name,
-        phone: user.phone,
-        email: user.email,
-        role: user.role
+        role: user.role,
+        is_active: user.is_active
       }
     });
   } catch (error) {
@@ -209,7 +103,7 @@ const getProfile = async (req, res, next) => {
   try {
     const { data: user, error } = await supabase
       .from('users')
-      .select('id, name, phone, email, role, created_at')
+      .select('id, name, phone, email, role, is_active, created_at')
       .eq('id', req.userId)
       .single();
 
@@ -244,11 +138,90 @@ const updateProfile = async (req, res, next) => {
   }
 };
 
+// Change user password
+const changePassword = async (req, res, next) => {
+  try {
+    const { oldPassword, newPassword } = req.body;
+
+    // Get user
+    const { data: user, error } = await supabase
+      .from('users')
+      .select('id, password')
+      .eq('id', req.userId)
+      .single();
+
+    if (error || !user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    // Verify old password
+    const isMatch = await bcrypt.compare(oldPassword, user.password);
+    if (!isMatch) {
+      return res.status(401).json({ error: 'Current password is incorrect' });
+    }
+
+    // Hash new password and update
+    const hashed = await bcrypt.hash(newPassword, 10);
+
+    const { data: updatedUser, error: updateError } = await supabase
+      .from('users')
+      .update({ password: hashed, updated_at: new Date().toISOString() })
+      .eq('id', req.userId)
+      .select('id')
+      .single();
+
+    if (updateError) throw updateError;
+
+    res.json({ message: 'Password changed successfully' });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// Delete user account
+const deleteAccount = async (req, res, next) => {
+  try {
+    const userId = req.userId;
+
+    // Delete user's orders
+    await supabase
+      .from('orders')
+      .delete()
+      .eq('user_id', userId);
+
+    // Delete user's addresses
+    await supabase
+      .from('addresses')
+      .delete()
+      .eq('user_id', userId);
+
+    // Delete user's cart items
+    await supabase
+      .from('cart')
+      .delete()
+      .eq('user_id', userId);
+
+    // Delete the user account
+    const { error } = await supabase
+      .from('users')
+      .delete()
+      .eq('id', userId);
+
+    if (error) throw error;
+
+    res.json({
+      message: 'Account successfully deleted. All associated data has been removed.'
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   register,
   login,
-  sendOTP,
-  verifyOTP,
   getProfile,
-  updateProfile
+  updateProfile,
+  changePassword,
+  deleteAccount
 };
