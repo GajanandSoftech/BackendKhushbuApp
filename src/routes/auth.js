@@ -26,26 +26,6 @@ router.post('/login',
   authController.login
 );
 
-// Send OTP
-router.post('/send-otp',
-  [
-    body('phone').isMobilePhone().withMessage('Valid phone number required'),
-    validate
-  ],
-  authController.sendOTP
-);
-
-// Verify OTP
-router.post('/verify-otp',
-  [
-    body('phone').isMobilePhone().withMessage('Valid phone number required'),
-    body('otp').isLength({ min: 6, max: 6 }).withMessage('Valid OTP required'),
-    validate
-  ],
-  authController.verifyOTP
-);
-
-// Get profile (protected)
 router.get('/profile', authMiddleware, authController.getProfile);
 
 // Update profile (protected)
@@ -57,6 +37,23 @@ router.put('/profile',
     validate
   ],
   authController.updateProfile
+);
+
+// Change password (protected)
+router.post('/change-password',
+  authMiddleware,
+  [
+    body('oldPassword').notEmpty().withMessage('Current password required'),
+    body('newPassword').isLength({ min: 6 }).withMessage('New password must be at least 6 characters'),
+    validate
+  ],
+  authController.changePassword
+);
+
+// Delete account (protected)
+router.post('/delete-account',
+  authMiddleware,
+  authController.deleteAccount
 );
 
 module.exports = router;
