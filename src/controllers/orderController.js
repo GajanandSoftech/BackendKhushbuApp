@@ -1,5 +1,4 @@
 const { supabase } = require('../config/supabase');
-const { v4: uuidv4 } = require('uuid');
 
 // Create new order
 const createOrder = async (req, res, next) => {
@@ -65,11 +64,53 @@ const createOrder = async (req, res, next) => {
       });
     }
 
-    const deliveryFee = 0; // Free delivery
+    // Determine delivery fee based on address and subtotal
+    let deliveryFee = 49;
+    try {
+      let address = null;
+      if (address_id) {
+        const { data: addrData, error: addrErr } = await supabase
+          .from('addresses')
+          .select('*')
+          .eq('id', address_id)
+          .single();
+        if (!addrErr) address = addrData;
+      }
+
+      // If no explicit address provided, try to find user's default address
+      if (!address) {
+        const { data: defAddr, error: defErr } = await supabase
+          .from('addresses')
+          .select('*')
+          .eq('user_id', req.userId)
+          .eq('is_default', true)
+          .limit(1)
+          .single();
+        if (!defErr) address = defAddr;
+      }
+
+      const addrPincode = address ? String(address.pincode || '') : '';
+      const addrLine = address ? String(address.address_line1 || '') : '';
+      const addrArea = address ? String(address.area || address.locality || '') : '';
+      const isManinagar = /maninagar/i.test(`${addrArea} ${addrLine}`);
+
+      if (isManinagar) {
+        deliveryFee = 0;
+      } else if (addrPincode === '380008' && subtotal >= 99) {
+        deliveryFee = 0;
+      } else {
+        deliveryFee = 49;
+      }
+    } catch (err) {
+      // On any error determining address, default to charged delivery fee
+      deliveryFee = 49;
+    }
+
     const total = subtotal + deliveryFee;
 
     // Create order
-    const orderNumber = `ORD-${Date.now()}-${uuidv4().slice(0, 8).toUpperCase()}`;
+    const randomString = Math.random().toString(36).substring(2, 7).toUpperCase(); 
+    const orderNumber = `ORD-${randomString}`;
 
     const { data: order, error: orderError } = await supabase
       .from('orders')
@@ -129,14 +170,14 @@ const createOrder = async (req, res, next) => {
 // Get user orders
 const getUserOrders = async (req, res, next) => {
   try {
-    const { status, page = 1, limit = 10 } = req.query;
+    const { status, page = 1, limit = 10, days } = req.query;
 
     let query = supabase
       .from('orders')
       .select(`
         *,
         address:addresses(
-          address_line1, address_line2, city, state, pincode, landmark
+          address_line1, area, city, state, pincode, landmark
         ),
         order_items(
           *,
@@ -147,8 +188,20 @@ const getUserOrders = async (req, res, next) => {
       .eq('user_id', req.userId)
       .order('created_at', { ascending: false });
 
+    // Filter by status if provided
     if (status) {
       query = query.eq('status', status);
+    }
+
+    // Filter by days if provided
+    if (days) {
+      const daysNum = parseInt(days);
+      if (!isNaN(daysNum) && daysNum > 0) {
+        const cutoffDate = new Date();
+        cutoffDate.setDate(cutoffDate.getDate() - daysNum);
+        const cutoffIso = cutoffDate.toISOString();
+        query = query.gte('created_at', cutoffIso);
+      }
     }
 
     const from = (page - 1) * limit;
