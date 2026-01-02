@@ -411,7 +411,12 @@ const getFeaturedProducts = async (req, res, next) => {
 // Search products
 const searchProducts = async (req, res, next) => {
   try {
-    const { q, limit = 20 } = req.query;
+    const { q } = req.query;
+    // parse and cap limit to avoid heavy queries from clients
+    const rawLimit = parseInt(req.query.limit, 10);
+    const DEFAULT_LIMIT = 10;
+    const MAX_LIMIT = 10;
+    const limit = Number.isInteger(rawLimit) && rawLimit > 0 ? Math.min(rawLimit, MAX_LIMIT) : DEFAULT_LIMIT;
 
     if (!q) {
       return res.status(400).json({ error: "Search query required" });

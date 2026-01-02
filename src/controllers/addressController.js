@@ -43,7 +43,7 @@ const createAddress = async (req, res, next) => {
   try {
     const {
       address_line1,
-      address_line2,
+      area,
       city,
       state,
       pincode,
@@ -67,7 +67,7 @@ const createAddress = async (req, res, next) => {
       .insert({
         user_id: req.userId,
         address_line1,
-        address_line2,
+        area,
         city,
         state,
         pincode,

@@ -64,8 +64,8 @@ const createOrder = async (req, res, next) => {
       });
     }
 
-    // Determine delivery fee based on address and subtotal
-    let deliveryFee = 49;
+    // Determine delivery fee based on address and subtotal (mirror frontend CheckoutScreen)
+    let deliveryFee = 40;
     try {
       let address = null;
       if (address_id) {
@@ -94,16 +94,17 @@ const createOrder = async (req, res, next) => {
       const addrArea = address ? String(address.area || address.locality || '') : '';
       const isManinagar = /maninagar/i.test(`${addrArea} ${addrLine}`);
 
-      if (isManinagar) {
+      if ((subtotal ?? 0) < 250) {
+        deliveryFee = 40;
+      } else if (isManinagar) {
         deliveryFee = 0;
-      } else if (addrPincode === '380008' && subtotal >= 99) {
-        deliveryFee = 0;
+      } else if (!address || addrPincode !== '380008') {
+        deliveryFee = 40;
       } else {
-        deliveryFee = 49;
+        deliveryFee = 0;
       }
     } catch (err) {
-      // On any error determining address, default to charged delivery fee
-      deliveryFee = 49;
+      deliveryFee = 40;
     }
 
     const total = subtotal + deliveryFee;

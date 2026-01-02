@@ -56,4 +56,13 @@ router.post('/delete-account',
   authController.deleteAccount
 );
 
+// Forgot password (send new password via email)
+router.post('/forgot-password',
+  [
+    body('identifier').trim().notEmpty().withMessage('Phone or email required'),
+    validate
+  ],
+  authController.forgotPassword
+);
+
 module.exports = router;

@@ -217,11 +217,97 @@ const deleteAccount = async (req, res, next) => {
   }
 };
 
+// Forgot password - generate new password, update user, and email via nodemailer
+const forgotPassword = async (req, res, next) => {
+  try {
+    const { identifier } = req.body; // phone or email
+    if (!identifier) return res.status(400).json({ error: 'Identifier required' });
+
+    // Try find by phone first
+    let { data: user, error } = await supabase
+      .from('users')
+      .select('*')
+      .eq('phone', identifier)
+      .single();
+
+    if (error || !user) {
+      // Try by email
+      const { data: u2, error: e2 } = await supabase
+        .from('users')
+        .select('*')
+        .eq('email', identifier)
+        .single();
+      user = u2;
+      error = e2;
+    }
+
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    // Generate a simple random password
+    const crypto = require('crypto');
+    const newPassword = crypto.randomBytes(4).toString('hex'); // 8 chars
+
+    const hashed = await bcrypt.hash(newPassword, 10);
+
+    const { error: updateErr } = await supabase
+      .from('users')
+      .update({ password: hashed, updated_at: new Date().toISOString() })
+      .eq('id', user.id);
+
+    if (updateErr) throw updateErr;
+
+    // Send email via nodemailer if email exists
+    const nodemailer = require('nodemailer');
+    const SMTP_HOST = process.env.SMTP_HOST;
+    const SMTP_PORT = process.env.SMTP_PORT;
+    const SMTP_USER = process.env.SMTP_USER;
+    const SMTP_PASS = process.env.SMTP_PASS;
+    const FROM_EMAIL = process.env.FROM_EMAIL || SMTP_USER;
+
+    if (user.email && SMTP_HOST && SMTP_USER && SMTP_PASS) {
+      const transporter = nodemailer.createTransport({
+        host: SMTP_HOST,
+        port: SMTP_PORT ? parseInt(SMTP_PORT, 10) : 587,
+        secure: SMTP_PORT == 465, // true for 465, false for other ports
+        auth: {
+          user: SMTP_USER,
+          pass: SMTP_PASS,
+        },
+      });
+
+      const mailOptions = {
+        from: FROM_EMAIL,
+        to: user.email,
+        subject: 'Password reset - Your new password',
+        text: `Hello ${user.name || ''},\n\nA new password has been generated for your account.\n\nEmail: ${user.email}\nPhone: ${user.phone}\nNew Password: ${newPassword}\n\nPlease login and change your password immediately.\n\nIf you did not request this, contact support.`,
+      };
+
+      try {
+        await transporter.sendMail(mailOptions);
+      } catch (mailErr) {
+        console.error('Failed to send reset email', mailErr);
+        // still return success since password updated; inform that email failed
+        return res.json({ message: 'Password reset; email send failed', emailSent: false });
+      }
+
+      return res.json({ message: 'Password reset; email sent', emailSent: true });
+    }
+
+    // If no email configured or user has no email, still return success but indicate no email
+    res.json({ message: 'Password reset (no email sent)', emailSent: false });
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   register,
   login,
   getProfile,
   updateProfile,
   changePassword,
-  deleteAccount
+  deleteAccount,
+  forgotPassword
 };
