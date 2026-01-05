@@ -14,21 +14,14 @@ function haversineDistanceKm(lat1, lon1, lat2, lon2) {
   return R * c;
 }
 
-/**
- * Get delivery fee based on distance from store coords
- * Rules:
- * <=5km => 0
- * <=8km => 40
- * <=12km => 60
- * >12km => 100
- */
 function getDeliveryFee(storeLat, storeLng, lat, lng) {
   const d = haversineDistanceKm(storeLat, storeLng, lat, lng);
   const distanceKm = Math.round(d * 100) / 100;
   let fee = 100;
-  if (distanceKm <= 5) fee = 0;
-  else if (distanceKm <= 8) fee = 40;
-  else if (distanceKm <= 12) fee = 60;
+  if (distanceKm <= 3) fee = 0;
+  else if (distanceKm <= 6) fee = 40;
+  else if (distanceKm <= 9) fee = 60;
+  else if (distanceKm <= 12) fee = 90;
   else fee = 100;
   return { distanceKm, fee };
 }
