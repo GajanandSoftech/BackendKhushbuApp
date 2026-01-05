@@ -54,6 +54,25 @@ const createAddress = async (req, res, next) => {
       is_default
     } = req.body;
 
+    // compute delivery fee server-side if coords provided
+    let delivery_fee = null;
+    try {
+      const { getDeliveryFee } = require('../utils/delivery');
+      // default store coords; override via env if available
+      const storeLat = parseFloat(process.env.STORE_LAT || '23.03');
+      const storeLng = parseFloat(process.env.STORE_LNG || '72.60');
+      if (latitude != null && longitude != null) {
+        const latNum = Number(latitude);
+        const lngNum = Number(longitude);
+        if (!Number.isNaN(latNum) && !Number.isNaN(lngNum)) {
+          const res = getDeliveryFee(storeLat, storeLng, latNum, lngNum);
+          delivery_fee = res.fee;
+        }
+      }
+    } catch (e) {
+      // ignore delivery calc errors
+    }
+
     // If setting as default, unset other defaults
     if (is_default) {
       await supabase
@@ -62,21 +81,24 @@ const createAddress = async (req, res, next) => {
         .eq('user_id', req.userId);
     }
 
+    const insertObj = {
+      user_id: req.userId,
+      address_line1,
+      area,
+      city,
+      state,
+      pincode,
+      landmark,
+      latitude,
+      longitude,
+      address_type: address_type || 'home',
+      is_default: is_default || false
+    };
+    if (delivery_fee != null) insertObj.delivery_fee = delivery_fee;
+
     const { data: address, error } = await supabase
       .from('addresses')
-      .insert({
-        user_id: req.userId,
-        address_line1,
-        area,
-        city,
-        state,
-        pincode,
-        landmark,
-        latitude,
-        longitude,
-        address_type: address_type || 'home',
-        is_default: is_default || false
-      })
+      .insert(insertObj)
       .select()
       .single();
 
@@ -104,6 +126,23 @@ const updateAddress = async (req, res, next) => {
         .update({ is_default: false })
         .eq('user_id', req.userId)
         .neq('id', id);
+    }
+
+    // if latitude/longitude included in updateData, recompute delivery_fee
+    try {
+      const { getDeliveryFee } = require('../utils/delivery');
+      const storeLat = parseFloat(process.env.STORE_LAT || '23.03');
+      const storeLng = parseFloat(process.env.STORE_LNG || '72.60');
+      if (updateData.latitude != null && updateData.longitude != null) {
+        const latNum = Number(updateData.latitude);
+        const lngNum = Number(updateData.longitude);
+        if (!Number.isNaN(latNum) && !Number.isNaN(lngNum)) {
+          const res = getDeliveryFee(storeLat, storeLng, latNum, lngNum);
+          updateData.delivery_fee = res.fee;
+        }
+      }
+    } catch (e) {
+      // ignore
     }
 
     const { data: address, error } = await supabase

@@ -107,7 +107,8 @@ const createOrder = async (req, res, next) => {
       deliveryFee = 40;
     }
 
-    const total = subtotal + deliveryFee;
+    const smallCartCharge = (subtotal ?? 0) < 250 ? 40 : 0;
+    const total = subtotal + deliveryFee + smallCartCharge;
 
     // Create order
     const randomString = Math.random().toString(36).substring(2, 7).toUpperCase(); 
@@ -121,6 +122,7 @@ const createOrder = async (req, res, next) => {
         address_id,
         subtotal,
         delivery_fee: deliveryFee,
+        small_cart_charge: smallCartCharge,
         total,
         status: 'pending',
         payment_method,
