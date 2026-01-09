@@ -1,9 +1,15 @@
 const { supabase } = require('../config/supabase');
 
+// Lightweight fetch helper (works with Node 18+ global fetch or falls back to node-fetch)
+const doFetch = (...args) => {
+  if (typeof fetch === 'function') return fetch(...args);
+  return import('node-fetch').then(({ default: f }) => f(...args));
+};
+
 // Create new order
 const createOrder = async (req, res, next) => {
   try {
-    const { address_id, delivery_instructions, payment_method } = req.body;
+    const { address_id, delivery_instructions, payment_method,delivery_fee } = req.body;
 
     const { data: cartItems, error: cartError } = await supabase
       .from('cart_items')
@@ -64,51 +70,8 @@ const createOrder = async (req, res, next) => {
       });
     }
 
-    // Determine delivery fee based on address and subtotal (mirror frontend CheckoutScreen)
-    let deliveryFee = 40;
-    try {
-      let address = null;
-      if (address_id) {
-        const { data: addrData, error: addrErr } = await supabase
-          .from('addresses')
-          .select('*')
-          .eq('id', address_id)
-          .single();
-        if (!addrErr) address = addrData;
-      }
-
-      // If no explicit address provided, try to find user's default address
-      if (!address) {
-        const { data: defAddr, error: defErr } = await supabase
-          .from('addresses')
-          .select('*')
-          .eq('user_id', req.userId)
-          .eq('is_default', true)
-          .limit(1)
-          .single();
-        if (!defErr) address = defAddr;
-      }
-
-      const addrPincode = address ? String(address.pincode || '') : '';
-      const addrLine = address ? String(address.address_line1 || '') : '';
-      const addrArea = address ? String(address.area || address.locality || '') : '';
-      const isManinagar = /maninagar/i.test(`${addrArea} ${addrLine}`);
-
-      if ((subtotal ?? 0) < 250) {
-        deliveryFee = 40;
-      } else if (isManinagar) {
-        deliveryFee = 0;
-      } else if (!address || addrPincode !== '380008') {
-        deliveryFee = 40;
-      } else {
-        deliveryFee = 0;
-      }
-    } catch (err) {
-      deliveryFee = 40;
-    }
-
     const smallCartCharge = (subtotal ?? 0) < 250 ? 40 : 0;
-    const total = subtotal + deliveryFee + smallCartCharge;
+    const total = subtotal + delivery_fee + smallCartCharge;
 
     // Create order
     const randomString = Math.random().toString(36).substring(2, 7).toUpperCase(); 
@@ -121,7 +84,7 @@ const createOrder = async (req, res, next) => {
         order_number: orderNumber,
         address_id,
         subtotal,
-        delivery_fee: deliveryFee,
+        delivery_fee,
         small_cart_charge: smallCartCharge,
         total,
         status: 'pending',
@@ -158,12 +121,37 @@ const createOrder = async (req, res, next) => {
       .delete()
       .eq('user_id', req.userId);
 
+    const orderPayload = {
+      ...order,
+      order_items: insertedItems || orderItemsPayload
+    };
+
+    // Broadcast to connected SSE clients (best-effort)
+    try {
+      if (req && req.app && typeof req.app.locals.broadcastOrder === 'function') {
+        req.app.locals.broadcastOrder(orderPayload);
+      }
+    } catch (e) {
+      console.error('Failed to broadcast new order via SSE', e);
+    }
+
+    // Forward to external admin webhook if configured (to bridge to another backend)
+    try {
+      const webhookUrl = process.env.ADMIN_ORDER_WEBHOOK_URL;
+      if (webhookUrl) {
+        await doFetch(webhookUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ order: orderPayload })
+        });
+      }
+    } catch (e) {
+      console.error('Failed to forward order to admin webhook', e);
+    }
+
     res.status(201).json({
       message: 'Order placed successfully',
-      order: {
-        ...order,
-        items: insertedItems || orderItemsPayload
-      }
+      order: orderPayload
     });
   } catch (error) {
     next(error);
@@ -328,6 +316,54 @@ const cancelOrder = async (req, res, next) => {
         product_id: item.product_id,
         quantity: item.quantity
       });
+    }
+
+    // Fetch the full updated order (including user/address/items) to send to admin
+    try {
+      const { data: fullOrder, error: fetchErr } = await supabase
+        .from('orders')
+        .select(`
+          *,
+          user:users(id, name, phone),
+          address:addresses(*),
+          order_items(
+            *,
+            product:products(id, name),
+            variant:product_variants(id, unit, weight, image_url)
+          )
+        `)
+        .eq('id', id)
+        .single();
+
+      if (fetchErr) {
+        console.error('Failed to fetch full order after cancel:', fetchErr);
+      } else {
+        const orderPayload = fullOrder;
+        // Broadcast locally if available
+        try {
+          if (req && req.app && typeof req.app.locals.broadcastOrder === 'function') {
+            req.app.locals.broadcastOrder(orderPayload);
+          }
+        } catch (e) {
+          console.error('Failed to broadcast cancelled order locally', e);
+        }
+
+        // Forward to external admin webhook if configured
+        try {
+          const webhookUrl = process.env.ADMIN_ORDER_WEBHOOK_URL;
+          if (webhookUrl) {
+            await doFetch(webhookUrl, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ order: orderPayload })
+            });
+          }
+        } catch (e) {
+          console.error('Failed to forward cancelled order to admin webhook', e);
+        }
+      }
+    } catch (e) {
+      console.error('Error preparing cancelled order payload:', e);
     }
 
     res.json({ message: 'Order cancelled successfully' });

@@ -247,7 +247,7 @@ const forgotPassword = async (req, res, next) => {
 
     // Generate a simple random password
     const crypto = require('crypto');
-    const newPassword = crypto.randomBytes(4).toString('hex'); // 8 chars
+    const newPassword = crypto.randomInt(0, 10000).toString().padStart(4, '0');
 
     const hashed = await bcrypt.hash(newPassword, 10);
 
@@ -258,7 +258,6 @@ const forgotPassword = async (req, res, next) => {
 
     if (updateErr) throw updateErr;
 
-    // Send email via nodemailer if email exists
     const nodemailer = require('nodemailer');
     const SMTP_HOST = process.env.SMTP_HOST;
     const SMTP_PORT = process.env.SMTP_PORT;
@@ -270,7 +269,7 @@ const forgotPassword = async (req, res, next) => {
       const transporter = nodemailer.createTransport({
         host: SMTP_HOST,
         port: SMTP_PORT ? parseInt(SMTP_PORT, 10) : 587,
-        secure: SMTP_PORT == 465, // true for 465, false for other ports
+        secure: SMTP_PORT == 465,
         auth: {
           user: SMTP_USER,
           pass: SMTP_PASS,
