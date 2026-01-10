@@ -217,108 +217,79 @@ const deleteAccount = async (req, res, next) => {
   }
 };
 
-// Forgot password - generate new password, update user, and email via nodemailer
+const { Resend } = require('resend');
+
+const resend = new Resend(process.env.RESEND_API_KEY);
+
 const forgotPassword = async (req, res, next) => {
   try {
-    const { identifier } = req.body; // phone or email
-    if (!identifier) return res.status(400).json({ error: 'Identifier required' });
+    const { identifier } = req.body;
+    if (!identifier) {
+      return res.status(400).json({ error: 'Identifier required' });
+    }
 
-    // Try find by phone first
-    let { data: user, error } = await supabase
+    // Find user by phone or email
+    let { data: user } = await supabase
       .from('users')
       .select('*')
       .eq('phone', identifier)
       .single();
 
-    if (error || !user) {
-      // Try by email
-      const { data: u2, error: e2 } = await supabase
+    if (!user) {
+      const { data: u2 } = await supabase
         .from('users')
         .select('*')
         .eq('email', identifier)
         .single();
       user = u2;
-      error = e2;
     }
 
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
     }
 
-    // Generate a simple random password
+    // Generate new password (TEMP approach)
     const crypto = require('crypto');
-    const newPassword = crypto.randomInt(0, 10000).toString().padStart(4, '0');
+    const newPassword = crypto.randomInt(1000, 9999).toString();
 
     const hashed = await bcrypt.hash(newPassword, 10);
 
-    const { error: updateErr } = await supabase
+    await supabase
       .from('users')
-      .update({ password: hashed, updated_at: new Date().toISOString() })
+      .update({
+        password: hashed,
+        updated_at: new Date().toISOString()
+      })
       .eq('id', user.id);
 
-    if (updateErr) throw updateErr;
-
-    const nodemailer = require('nodemailer');
-    const SMTP_HOST = process.env.SMTP_HOST;
-    const SMTP_PORT = process.env.SMTP_PORT;
-    const SMTP_USER = process.env.SMTP_USER;
-    const SMTP_PASS = process.env.SMTP_PASS;
-    const FROM_EMAIL = process.env.FROM_EMAIL || SMTP_USER;
-
-    if (user.email && SMTP_HOST && SMTP_USER && SMTP_PASS) {
-      const port = SMTP_PORT ? parseInt(SMTP_PORT, 10) : 587;
-      const secure = port === 465;
-
-      // Warn if port looks unusual (helps debug misconfigured env like port 567)
-      if (SMTP_PORT && ![25, 465, 587, 2525].includes(port)) {
-        console.warn(`Unusual SMTP_PORT configured: ${SMTP_PORT}. Expected 25, 465, 587 or 2525.`);
-      }
-
-      const transporter = nodemailer.createTransport({
-        service: 'gmail',
-        auth: {
-          user: SMTP_USER,
-          pass: SMTP_PASS
-        }
-      });      
-
-      const mailOptions = {
-        from: `"Khushbu Fresh Farm" <${FROM_EMAIL}>`,
+    // Send email using Resend
+    if (user.email) {
+      await resend.emails.send({
+        from: 'Khushbu Fresh Farm <noreply@gajanandsoftech.in>',
         to: user.email,
-        subject: 'Password reset - Your new password',
+        subject: 'Password Reset',
         text: `Hello ${user.name || ''},
-      
-      A new password has been generated for your account.
-      
-      Email: ${user.email}
-      Phone: ${user.phone}
-      New Password: ${newPassword}
-      
-      Please login and change your password immediately.
-      
-      If you did not request this, contact support.
-      
-      — Khushbu Fresh Farm`
-      };
-      
 
-      try {
-        await transporter.sendMail(mailOptions);
-      } catch (mailErr) {
-        console.error('Failed to send reset email', mailErr);
-        // Return a 502 so callers can detect mail delivery failures; include message for debugging
-        return res.status(502).json({ message: 'Password reset; email send failed', emailSent: false, error: mailErr.message });
-      }
+A new password has been generated for your account.
 
-      return res.json({ message: 'Password reset; email sent', emailSent: true });
+New Password: ${newPassword}
+
+Please login and change your password immediately.
+
+— Khushbu Fresh Farm`
+      });
     }
 
-    // If no email configured or user has no email, still return success but indicate no email
-    res.json({ message: 'Password reset (no email sent)', emailSent: false });
+    res.json({
+      message: 'Password reset successfully',
+      emailSent: !!user.email
+    });
+
   } catch (error) {
     next(error);
   }
 };
+
 
 module.exports = {
   register,
