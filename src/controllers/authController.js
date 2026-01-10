@@ -275,18 +275,12 @@ const forgotPassword = async (req, res, next) => {
       }
 
       const transporter = nodemailer.createTransport({
-        host: SMTP_HOST,
-        port,
-        secure,
+        service: 'gmail',
         auth: {
           user: SMTP_USER,
-          pass: SMTP_PASS,
-        },
-        // Add sensible timeouts to fail fast on connectivity issues
-        connectionTimeout: 10000, // ms
-        greetingTimeout: 10000,
-        socketTimeout: 10000,
-      });
+          pass: SMTP_PASS
+        }
+      });      
 
       const mailOptions = {
         from: `"Khushbu Fresh Farm" <${FROM_EMAIL}>`,
