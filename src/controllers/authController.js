@@ -289,11 +289,24 @@ const forgotPassword = async (req, res, next) => {
       });
 
       const mailOptions = {
-        from: FROM_EMAIL,
+        from: `"Khushbu Fresh Farm" <${FROM_EMAIL}>`,
         to: user.email,
         subject: 'Password reset - Your new password',
-        text: `Hello ${user.name || ''},\n\nA new password has been generated for your account.\n\nEmail: ${user.email}\nPhone: ${user.phone}\nNew Password: ${newPassword}\n\nPlease login and change your password immediately.\n\nIf you did not request this, contact support.`,
+        text: `Hello ${user.name || ''},
+      
+      A new password has been generated for your account.
+      
+      Email: ${user.email}
+      Phone: ${user.phone}
+      New Password: ${newPassword}
+      
+      Please login and change your password immediately.
+      
+      If you did not request this, contact support.
+      
+      — Khushbu Fresh Farm`
       };
+      
 
       try {
         await transporter.sendMail(mailOptions);
