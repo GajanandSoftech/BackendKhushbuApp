@@ -12,6 +12,7 @@ const productRoutes = require('./routes/products');
 const cartRoutes = require('./routes/cart');
 const orderRoutes = require('./routes/orders');
 const addressRoutes = require('./routes/addresses');
+const storeStatusRoutes = require('./routes/storestatus');
 
 // Import middleware
 const errorHandler = require('./middleware/errorHandler');
@@ -28,11 +29,12 @@ const corsOptions = {
 };
 app.use(cors(corsOptions));
 
-// Rate limiting
+// Rate limiting (exclude store status endpoint which polls frequently)
 const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // limit each IP to 100 requests per windowMs
-  message: 'Too many requests from this IP, please try again later.'
+  windowMs: 15 * 60 * 1000,
+  max: 1000,
+  message: 'Too many requests from this IP, please try again later.',
+  skip: (req) => req.path === '/api/store/status' || req.path === '/api/store/time'
 });
 app.use('/api/', limiter);
 
@@ -64,6 +66,7 @@ app.use('/api/products', productRoutes);
 app.use('/api/cart', cartRoutes);
 app.use('/api/orders', orderRoutes);
 app.use('/api/addresses', addressRoutes);
+app.use('/api/store', storeStatusRoutes);
 
 // Root route
 app.get('/', (req, res) => {
@@ -72,6 +75,7 @@ app.get('/', (req, res) => {
     version: '1.0.0',
     endpoints: {
       health: '/health',
+      store: '/api/store',
       auth: '/api/auth',
       categories: '/api/categories',
       products: '/api/products',
