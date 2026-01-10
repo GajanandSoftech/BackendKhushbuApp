@@ -1,5 +1,10 @@
 const { supabase } = require('../config/supabase');
 
+// Helper: basic UUID format check to avoid passing invalid IDs to Postgres
+const isLikelyUuid = (val) => {
+  return typeof val === 'string' && val.length === 36 && val.indexOf('-') !== -1;
+};
+
 // Helper: pick default or first active variant
 const pickVariant = (product) => {
   const variants = product?.product_variants || [];
@@ -185,6 +190,11 @@ const addToCart = async (req, res, next) => {
 const updateCartItem = async (req, res, next) => {
   try {
     const { id } = req.params;
+
+    // Reject temp/invalid ids early to avoid DB UUID parse errors
+    if (!isLikelyUuid(id)) {
+      return res.status(400).json({ error: 'Invalid cart item id' });
+    }
     const { quantity } = req.body;
 
     if (quantity < 1) {
@@ -232,6 +242,10 @@ const updateCartItem = async (req, res, next) => {
 const removeFromCart = async (req, res, next) => {
   try {
     const { id } = req.params;
+
+    if (!isLikelyUuid(id)) {
+      return res.status(400).json({ error: 'Invalid cart item id' });
+    }
 
     const { error } = await supabase
       .from('cart_items')
