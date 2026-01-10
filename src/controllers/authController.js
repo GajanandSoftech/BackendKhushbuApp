@@ -266,14 +266,26 @@ const forgotPassword = async (req, res, next) => {
     const FROM_EMAIL = process.env.FROM_EMAIL || SMTP_USER;
 
     if (user.email && SMTP_HOST && SMTP_USER && SMTP_PASS) {
+      const port = SMTP_PORT ? parseInt(SMTP_PORT, 10) : 587;
+      const secure = port === 465;
+
+      // Warn if port looks unusual (helps debug misconfigured env like port 567)
+      if (SMTP_PORT && ![25, 465, 587, 2525].includes(port)) {
+        console.warn(`Unusual SMTP_PORT configured: ${SMTP_PORT}. Expected 25, 465, 587 or 2525.`);
+      }
+
       const transporter = nodemailer.createTransport({
         host: SMTP_HOST,
-        port: SMTP_PORT ? parseInt(SMTP_PORT, 10) : 587,
-        secure: SMTP_PORT == 465,
+        port,
+        secure,
         auth: {
           user: SMTP_USER,
           pass: SMTP_PASS,
         },
+        // Add sensible timeouts to fail fast on connectivity issues
+        connectionTimeout: 10000, // ms
+        greetingTimeout: 10000,
+        socketTimeout: 10000,
       });
 
       const mailOptions = {
@@ -287,8 +299,8 @@ const forgotPassword = async (req, res, next) => {
         await transporter.sendMail(mailOptions);
       } catch (mailErr) {
         console.error('Failed to send reset email', mailErr);
-        // still return success since password updated; inform that email failed
-        return res.json({ message: 'Password reset; email send failed', emailSent: false });
+        // Return a 502 so callers can detect mail delivery failures; include message for debugging
+        return res.status(502).json({ message: 'Password reset; email send failed', emailSent: false, error: mailErr.message });
       }
 
       return res.json({ message: 'Password reset; email sent', emailSent: true });
