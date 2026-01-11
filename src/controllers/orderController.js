@@ -245,7 +245,6 @@ const getOrderById = async (req, res, next) => {
   }
 };
 
-// Update order status (Admin only or user for returns)
 const updateOrderStatus = async (req, res, next) => {
   try {
     const { id } = req.params;
@@ -320,6 +319,57 @@ const updateOrderStatus = async (req, res, next) => {
       }
     } catch (e) {
       console.error('Failed to broadcast order update', e);
+    }
+
+    // For return-related status changes, also fetch a full order payload (including user)
+    // and forward it to the admin webhook (if configured) and broadcast the richer payload.
+    try {
+      if (String(status || '').startsWith('return')) {
+        try {
+          const { data: fullOrder, error: fetchErr } = await supabase
+            .from('orders')
+            .select(`
+              *,
+              user:users(id, name, phone),
+              address:addresses(*),
+              order_items(
+                *,
+                product:products(id, name),
+                variant:product_variants(id, unit, weight, image_url)
+              )
+            `)
+            .eq('id', id)
+            .single();
+
+          if (!fetchErr && fullOrder) {
+            const orderPayload = fullOrder;
+            try {
+              if (req && req.app && typeof req.app.locals.broadcastOrder === 'function') {
+                req.app.locals.broadcastOrder(orderPayload);
+              }
+            } catch (e) {
+              console.error('Failed to broadcast full order payload for return event', e);
+            }
+
+            try {
+              const webhookUrl = process.env.ADMIN_ORDER_WEBHOOK_URL;
+              if (webhookUrl) {
+                await doFetch(webhookUrl, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ order: orderPayload, event: status })
+                });
+              }
+            } catch (e) {
+              console.error('Failed to forward return order to admin webhook', e);
+            }
+          }
+        } catch (e) {
+          console.error('Error preparing return order payload:', e);
+        }
+      }
+    } catch (e) {
+      console.error('Return broadcast handling error', e);
     }
 
     res.json({
@@ -421,50 +471,6 @@ const cancelOrder = async (req, res, next) => {
     }
 
     res.json({ message: 'Order cancelled successfully' });
-  } catch (error) {
-    next(error);
-  }
-};
-
-// Get all orders (Admin only)
-const getAllOrders = async (req, res, next) => {
-  try {
-    const { status, page = 1, limit = 20 } = req.query;
-
-    let query = supabase
-      .from('orders')
-      .select(`
-        *,
-        user:users(id, name, phone),
-        order_items(
-          *,
-          product:products(id, name),
-          variant:product_variants(id, unit, weight, image_url)
-        )
-      `, { count: 'exact' })
-      .order('created_at', { ascending: false });
-
-    if (status) {
-      query = query.eq('status', status);
-    }
-
-    const from = (page - 1) * limit;
-    const to = from + limit - 1;
-    query = query.range(from, to);
-
-    const { data: orders, error, count } = await query;
-
-    if (error) throw error;
-
-    res.json({
-      orders,
-      pagination: {
-        page: parseInt(page),
-        limit: parseInt(limit),
-        total: count,
-        totalPages: Math.ceil(count / limit)
-      }
-    });
   } catch (error) {
     next(error);
   }
