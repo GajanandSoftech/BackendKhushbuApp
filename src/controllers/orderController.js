@@ -245,16 +245,52 @@ const getOrderById = async (req, res, next) => {
   }
 };
 
-// Update order status (Admin only)
+// Update order status (Admin only or user for returns)
 const updateOrderStatus = async (req, res, next) => {
   try {
     const { id } = req.params;
     const { status } = req.body;
 
-    const validStatuses = ['pending', 'confirmed', 'processing', 'out_for_delivery', 'delivered', 'cancelled'];
+    const validStatuses = [
+      'pending', 
+      'confirmed', 
+      'processing', 
+      'out_for_delivery', 
+      'delivered', 
+      'cancelled',
+      'return_initiated',
+      'return_completed',
+      'return_cancelled'
+    ];
     
     if (!validStatuses.includes(status)) {
-      return res.status(400).json({ error: 'Invalid status' });
+      return res.status(400).json({ success: false, error: 'Invalid status' });
+    }
+
+    // Verify order exists and user has permission
+    const { data: existingOrder } = await supabase
+      .from('orders')
+      .select('id, user_id, status')
+      .eq('id', id)
+      .single();
+
+    if (!existingOrder) {
+      return res.status(404).json({ success: false, error: 'Order not found' });
+    }
+
+    // Allow users to initiate/cancel returns on their own delivered orders
+    const isReturnAction = ['return_initiated', 'return_cancelled'].includes(status);
+    if (isReturnAction && existingOrder.user_id !== req.userId) {
+      return res.status(403).json({ success: false, error: 'Unauthorized' });
+    }
+
+    // Validate return status transitions
+    if (status === 'return_initiated' && existingOrder.status !== 'delivered') {
+      return res.status(400).json({ success: false, error: 'Can only initiate return for delivered orders' });
+    }
+
+    if (status === 'return_cancelled' && existingOrder.status !== 'return_initiated') {
+      return res.status(400).json({ success: false, error: 'Can only cancel an initiated return' });
     }
 
     const { data: order, error } = await supabase
@@ -264,14 +300,32 @@ const updateOrderStatus = async (req, res, next) => {
         updated_at: new Date().toISOString()
       })
       .eq('id', id)
-      .select()
+      .select(`
+        *,
+        address:addresses(*),
+        order_items(
+          *,
+          product:products(id, name),
+          variant:product_variants(id, unit, weight, image_url)
+        )
+      `)
       .single();
 
     if (error) throw error;
 
+    // Broadcast status change
+    try {
+      if (req && req.app && typeof req.app.locals.broadcastOrder === 'function') {
+        req.app.locals.broadcastOrder(order);
+      }
+    } catch (e) {
+      console.error('Failed to broadcast order update', e);
+    }
+
     res.json({
+      success: true,
       message: 'Order status updated',
-      order
+      data: order
     });
   } catch (error) {
     next(error);
