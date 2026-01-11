@@ -21,7 +21,16 @@ router.get('/:id', authMiddleware, orderController.getOrderById);
 router.post('/:id/cancel', authMiddleware, orderController.cancelOrder);
 
 // User return requests (no admin required)
-router.put('/:id/return', authMiddleware, orderController.updateOrderStatus);
+router.post('/:id/return/initiate', authMiddleware, (req, res, next) => {
+  req.body.status = 'return_initiated';
+  return orderController.updateOrderStatus(req, res, next);
+});
+
+router.post('/:id/return/cancel', authMiddleware, (req, res, next) => {
+  req.body.status = 'return_cancelled';
+  return orderController.updateOrderStatus(req, res, next);
+});
+
 
 // Admin routes
 router.get('/admin/all', authMiddleware, adminMiddleware, orderController.getAllOrders);
