@@ -482,5 +482,4 @@ module.exports = {
   getOrderById,
   updateOrderStatus,
   cancelOrder,
-  getAllOrders
 };
