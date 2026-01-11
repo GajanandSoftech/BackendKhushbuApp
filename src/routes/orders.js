@@ -20,13 +20,16 @@ router.get('/', authMiddleware, orderController.getUserOrders);
 router.get('/:id', authMiddleware, orderController.getOrderById);
 router.post('/:id/cancel', authMiddleware, orderController.cancelOrder);
 
+// User return requests (no admin required)
+router.put('/:id/return', authMiddleware, orderController.updateOrderStatus);
+
 // Admin routes
 router.get('/admin/all', authMiddleware, adminMiddleware, orderController.getAllOrders);
 router.put('/:id/status',
   authMiddleware,
   adminMiddleware,
   [
-    body('status').isIn(['pending', 'confirmed', 'processing', 'out_for_delivery', 'delivered', 'cancelled']),
+    body('status').isIn(['pending', 'confirmed', 'processing', 'out_for_delivery', 'delivered', 'cancelled', 'return_initiated', 'return_completed', 'return_cancelled']),
     validate
   ],
   orderController.updateOrderStatus
