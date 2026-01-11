@@ -31,9 +31,6 @@ router.post('/:id/return/cancel', authMiddleware, (req, res, next) => {
   return orderController.updateOrderStatus(req, res, next);
 });
 
-
-// Admin routes
-router.get('/admin/all', authMiddleware, adminMiddleware, orderController.getAllOrders);
 router.put('/:id/status',
   authMiddleware,
   adminMiddleware,
