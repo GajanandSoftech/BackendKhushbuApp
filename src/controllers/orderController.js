@@ -70,7 +70,7 @@ const createOrder = async (req, res, next) => {
       });
     }
 
-    const smallCartCharge = (subtotal ?? 0) < 250 ? 40 : 0;
+    const smallCartCharge = (subtotal ?? 0) < 350 ? 40 : 0;
     const total = subtotal + delivery_fee + smallCartCharge;
 
     // Create order
