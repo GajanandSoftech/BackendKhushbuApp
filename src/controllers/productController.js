@@ -64,7 +64,6 @@ const getAllProducts = async (req, res, next) => {
       sort_by = "created_at",
       order = "desc",
       page = 1,
-      limit = 20,
     } = req.query;
 
     let query = supabase
