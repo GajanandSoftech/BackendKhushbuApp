@@ -1,6 +1,6 @@
-const { supabase } = require('../config/supabase');
-const bcrypt = require('bcryptjs');
-const { generateToken } = require('../utils/jwt');
+const { supabase } = require("../config/supabase");
+const bcrypt = require("bcryptjs");
+const { generateToken } = require("../utils/jwt");
 
 // Register new user
 const register = async (req, res, next) => {
@@ -9,13 +9,13 @@ const register = async (req, res, next) => {
 
     // Check if user exists
     const { data: existingUser } = await supabase
-      .from('users')
-      .select('id')
-      .eq('phone', phone)
+      .from("users")
+      .select("id")
+      .eq("phone", phone)
       .single();
 
     if (existingUser) {
-      return res.status(409).json({ error: 'Phone number already registered' });
+      return res.status(409).json({ error: "Phone number already registered" });
     }
 
     // Hash password
@@ -23,13 +23,13 @@ const register = async (req, res, next) => {
 
     // Create user
     const { data: user, error } = await supabase
-      .from('users')
+      .from("users")
       .insert({
         phone,
         name,
         email,
         password: hashedPassword,
-        role: 'user'
+        role: "user",
       })
       .select()
       .single();
@@ -40,7 +40,7 @@ const register = async (req, res, next) => {
     const token = generateToken(user.id, user.role);
 
     res.status(201).json({
-      message: 'User registered successfully',
+      message: "User registered successfully",
       token,
       user: {
         id: user.id,
@@ -48,8 +48,8 @@ const register = async (req, res, next) => {
         phone: user.phone,
         email: user.email,
         role: user.role,
-        is_active: user.is_active
-      }
+        is_active: user.is_active,
+      },
     });
   } catch (error) {
     next(error);
@@ -63,26 +63,26 @@ const login = async (req, res, next) => {
 
     // Get user
     const { data: user, error } = await supabase
-      .from('users')
-      .select('*')
-      .eq('phone', phone)
+      .from("users")
+      .select("*")
+      .eq("phone", phone)
       .single();
 
     if (error || !user) {
-      return res.status(401).json({ error: 'Invalid credentials' });
+      return res.status(401).json({ error: "Invalid credentials" });
     }
 
     // Verify password
     const isValidPassword = await bcrypt.compare(password, user.password);
     if (!isValidPassword) {
-      return res.status(401).json({ error: 'Invalid credentials' });
+      return res.status(401).json({ error: "Invalid credentials" });
     }
 
     // Generate token
     const token = generateToken(user.id, user.role);
 
     res.json({
-      message: 'Login successful',
+      message: "Login successful",
       token,
       user: {
         id: user.id,
@@ -90,8 +90,8 @@ const login = async (req, res, next) => {
         phone: user.phone,
         email: user.email,
         role: user.role,
-        is_active: user.is_active
-      }
+        is_active: user.is_active,
+      },
     });
   } catch (error) {
     next(error);
@@ -102,9 +102,9 @@ const login = async (req, res, next) => {
 const getProfile = async (req, res, next) => {
   try {
     const { data: user, error } = await supabase
-      .from('users')
-      .select('id, name, phone, email, role, is_active, created_at')
-      .eq('id', req.userId)
+      .from("users")
+      .select("id, name, phone, email, role, is_active, created_at")
+      .eq("id", req.userId)
       .single();
 
     if (error) throw error;
@@ -121,17 +121,17 @@ const updateProfile = async (req, res, next) => {
     const { name, email } = req.body;
 
     const { data: user, error } = await supabase
-      .from('users')
+      .from("users")
       .update({ name, email, updated_at: new Date().toISOString() })
-      .eq('id', req.userId)
-      .select('id, name, phone, email, role')
+      .eq("id", req.userId)
+      .select("id, name, phone, email, role")
       .single();
 
     if (error) throw error;
 
     res.json({
-      message: 'Profile updated successfully',
-      user
+      message: "Profile updated successfully",
+      user,
     });
   } catch (error) {
     next(error);
@@ -145,34 +145,34 @@ const changePassword = async (req, res, next) => {
 
     // Get user
     const { data: user, error } = await supabase
-      .from('users')
-      .select('id, password')
-      .eq('id', req.userId)
+      .from("users")
+      .select("id, password")
+      .eq("id", req.userId)
       .single();
 
     if (error || !user) {
-      return res.status(404).json({ error: 'User not found' });
+      return res.status(404).json({ error: "User not found" });
     }
 
     // Verify old password
     const isMatch = await bcrypt.compare(oldPassword, user.password);
     if (!isMatch) {
-      return res.status(401).json({ error: 'Current password is incorrect' });
+      return res.status(401).json({ error: "Current password is incorrect" });
     }
 
     // Hash new password and update
     const hashed = await bcrypt.hash(newPassword, 10);
 
     const { data: updatedUser, error: updateError } = await supabase
-      .from('users')
+      .from("users")
       .update({ password: hashed, updated_at: new Date().toISOString() })
-      .eq('id', req.userId)
-      .select('id')
+      .eq("id", req.userId)
+      .select("id")
       .single();
 
     if (updateError) throw updateError;
 
-    res.json({ message: 'Password changed successfully' });
+    res.json({ message: "Password changed successfully" });
   } catch (error) {
     next(error);
   }
@@ -184,40 +184,29 @@ const deleteAccount = async (req, res, next) => {
     const userId = req.userId;
 
     // Delete user's orders
-    await supabase
-      .from('orders')
-      .delete()
-      .eq('user_id', userId);
+    await supabase.from("orders").delete().eq("user_id", userId);
 
     // Delete user's addresses
-    await supabase
-      .from('addresses')
-      .delete()
-      .eq('user_id', userId);
+    await supabase.from("addresses").delete().eq("user_id", userId);
 
     // Delete user's cart items
-    await supabase
-      .from('cart')
-      .delete()
-      .eq('user_id', userId);
+    await supabase.from("cart").delete().eq("user_id", userId);
 
     // Delete the user account
-    const { error } = await supabase
-      .from('users')
-      .delete()
-      .eq('id', userId);
+    const { error } = await supabase.from("users").delete().eq("id", userId);
 
     if (error) throw error;
 
     res.json({
-      message: 'Account successfully deleted. All associated data has been removed.'
+      message:
+        "Account successfully deleted. All associated data has been removed.",
     });
   } catch (error) {
     next(error);
   }
 };
 
-const { Resend } = require('resend');
+const { Resend } = require("resend");
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -248,21 +237,39 @@ const forgotPassword = async (req, res, next) => {
       return res.status(404).json({ error: 'User not found' });
     }
 
-    // Generate new password (TEMP approach)
+    const today = new Date().toISOString().split('T')[0];
+
+    // Reset count if new day
+    let requestCount = user.forgot_password_count || 0;
+    let lastDate = user.forgot_password_last_date;
+
+    if (lastDate !== today) {
+      requestCount = 0;
+    }
+
+    if (requestCount >= 2) {
+      return res.status(429).json({
+        error: 'Forgot password limit reached. Try again tomorrow.'
+      });
+    }
+
+    // Generate temporary password
     const crypto = require('crypto');
     const newPassword = crypto.randomInt(1000, 9999).toString();
-
     const hashed = await bcrypt.hash(newPassword, 10);
 
+    // Update password + limit tracking
     await supabase
       .from('users')
       .update({
         password: hashed,
+        forgot_password_count: requestCount + 1,
+        forgot_password_last_date: today,
         updated_at: new Date().toISOString()
       })
       .eq('id', user.id);
 
-    // Send email using Resend
+    // Send email
     if (user.email) {
       await resend.emails.send({
         from: 'Khushbu Fresh Farm <noreply@gajanandsoftech.in>',
@@ -282,6 +289,7 @@ Please login and change your password immediately.
 
     res.json({
       message: 'Password reset successfully',
+      remainingAttempts: 1 - requestCount,
       emailSent: !!user.email
     });
 
@@ -290,7 +298,6 @@ Please login and change your password immediately.
   }
 };
 
-
 module.exports = {
   register,
   login,
@@ -298,5 +305,5 @@ module.exports = {
   updateProfile,
   changePassword,
   deleteAccount,
-  forgotPassword
+  forgotPassword,
 };
