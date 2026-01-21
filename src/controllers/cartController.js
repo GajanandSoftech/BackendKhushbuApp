@@ -19,7 +19,7 @@ const fetchProductsByIds = async (ids) => {
   const { data, error } = await supabase
     .from('products')
     .select(`
-      id, name,
+      id, name, is_active,
       product_variants(
   id,
   price,
