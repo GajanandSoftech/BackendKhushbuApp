@@ -272,7 +272,7 @@ const forgotPassword = async (req, res, next) => {
     // Send email
     if (user.email) {
       await resend.emails.send({
-        from: 'Khushbu Fresh Farm <noreply@gajanandsoftech.in>',
+        from: 'Khushbu Mart <noreply@khushbumart.in>',
         to: user.email,
         subject: 'Password Reset',
         text: `Hello ${user.name || ''},
@@ -283,7 +283,7 @@ New Password: ${newPassword}
 
 Please login and change your password immediately.
 
-— Khushbu Fresh Farm`
+— Khushbu Mart`
       });
     }
 
