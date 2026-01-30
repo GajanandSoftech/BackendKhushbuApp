@@ -141,7 +141,7 @@ const addToCart = async (req, res, next) => {
 
     let cartItem;
     if (existingItem) {
-      const newQuantity = existingItem.quantity + quantity;
+      const newQuantity = Math.min(existingItem.quantity + quantity, 8); // max 8
       const { data, error } = await supabase
         .from('cart_items')
         .update({ quantity: newQuantity, updated_at: new Date().toISOString() })
