@@ -281,7 +281,7 @@ const forgotPassword = async (req, res, next) => {
 
     // 5️⃣ Send Email
     if (user.email) {
-      const logoUrl = "https://khushbumart.in/favicon.png";
+      const logoUrl = "https://www.khushbumart.in/assets/logo-BOxJi_O8.png";
       await resend.emails.send({
         from: "Khushbu Mart <noreply@khushbumart.in>",
         to: user.email,
@@ -324,7 +324,7 @@ const forgotPassword = async (req, res, next) => {
           <img src="${logoUrl}"
                alt="Khushbu Mart"
                width="140"
-               style="display:block; margin:0 auto;" />
+               style="display:block; margin:0 auto;  border-radius:16%;" />
         </div>
 
         <p style="font-size:12px; color:#aaa; margin-top:10px;">
