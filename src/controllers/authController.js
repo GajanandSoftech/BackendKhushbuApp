@@ -283,7 +283,7 @@ const forgotPassword = async (req, res, next) => {
     if (user.email) {
       const logoUrl = "https://khushbumart.in/favicon.png";
       await resend.emails.send({
-        from: "Khushbu Mart <noreply@gajanandsoftech.in>",
+        from: "Khushbu Mart <noreply@khushbumart.in>",
         to: user.email,
         subject: "Password Reset Request — Khushbu Mart",
         html: `
