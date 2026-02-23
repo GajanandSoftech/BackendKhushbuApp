@@ -277,7 +277,7 @@ const forgotPassword = async (req, res, next) => {
       .eq("id", user.id);
 
     // 4️⃣ Create Reset Link
-    const resetLink = `${process.env.FRONTEND_URL}/reset-password-app/${resetToken}`;
+    const resetLink = `https://khushbumart.in/reset-password-app/${resetToken}`;
 
     // 5️⃣ Send Email
     if (user.email) {
