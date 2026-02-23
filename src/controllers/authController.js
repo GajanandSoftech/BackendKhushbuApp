@@ -1,4 +1,5 @@
 const { supabase } = require("../config/supabase");
+const crypto = require("crypto");
 const bcrypt = require("bcryptjs");
 const { generateToken } = require("../utils/jwt");
 
@@ -213,33 +214,33 @@ const resend = new Resend(process.env.RESEND_API_KEY);
 const forgotPassword = async (req, res, next) => {
   try {
     const { identifier } = req.body;
+
     if (!identifier) {
-      return res.status(400).json({ error: 'Identifier required' });
+      return res.status(400).json({ error: "Identifier required" });
     }
 
-    // Find user by phone or email
+    // 1️⃣ Find user by phone or email
     let { data: user } = await supabase
-      .from('users')
-      .select('*')
-      .eq('phone', identifier)
+      .from("users")
+      .select("*")
+      .eq("phone", identifier)
       .single();
 
     if (!user) {
       const { data: u2 } = await supabase
-        .from('users')
-        .select('*')
-        .eq('email', identifier)
+        .from("users")
+        .select("*")
+        .eq("email", identifier)
         .single();
       user = u2;
     }
 
     if (!user) {
-      return res.status(404).json({ error: 'User not found' });
+      return res.status(404).json({ error: "User not found" });
     }
 
-    const today = new Date().toISOString().split('T')[0];
+    const today = new Date().toISOString().split("T")[0];
 
-    // Reset count if new day
     let requestCount = user.forgot_password_count || 0;
     let lastDate = user.forgot_password_last_date;
 
@@ -249,50 +250,98 @@ const forgotPassword = async (req, res, next) => {
 
     if (requestCount >= 2) {
       return res.status(429).json({
-        error: 'Forgot password limit reached. Try again tomorrow.'
+        error: "Forgot password limit reached. Try again tomorrow.",
       });
     }
 
-    // Generate temporary password
-    const crypto = require('crypto');
-    const newPassword = crypto.randomInt(1000, 9999).toString();
-    const hashed = await bcrypt.hash(newPassword, 10);
+    // 2️⃣ Generate Secure Reset Token
+    const resetToken = crypto.randomBytes(32).toString("hex");
 
-    // Update password + limit tracking
+    const hashedToken = crypto
+      .createHash("sha256")
+      .update(resetToken)
+      .digest("hex");
+
+    const expiry = new Date(Date.now() + 15 * 60 * 1000).toISOString(); // 15 mins
+
+    // 3️⃣ Save token in DB (NOT password)
     await supabase
-      .from('users')
+      .from("users")
       .update({
-        password: hashed,
+        reset_password_token: hashedToken,
+        reset_password_expires: expiry,
         forgot_password_count: requestCount + 1,
         forgot_password_last_date: today,
-        updated_at: new Date().toISOString()
+        updated_at: new Date().toISOString(),
       })
-      .eq('id', user.id);
+      .eq("id", user.id);
 
-    // Send email
+    // 4️⃣ Create Reset Link
+    const resetLink = `${process.env.FRONTEND_URL}/reset-password-app/${resetToken}`;
+
+    // 5️⃣ Send Email
     if (user.email) {
+      const logoUrl = "https://khushbumart.in/favicon.png";
       await resend.emails.send({
-        from: 'Khushbu Mart <noreply@khushbumart.in>',
+        from: "Khushbu Mart <noreply@gajanandsoftech.in>",
         to: user.email,
-        subject: 'Password Reset',
-        text: `Hello ${user.name || ''},
+        subject: "Password Reset Request — Khushbu Mart",
+        html: `
+    <div style="font-family: Arial, sans-serif; background:#f4f4f4; padding:20px;">
+      <div style="max-width:500px; margin:auto; background:#ffffff; padding:30px; border-radius:8px; text-align:center;">
 
-A new password has been generated for your account.
+        <h2 style="color:#333;">Password Reset Request</h2>
 
-New Password: ${newPassword}
+        <p style="color:#555;">Hello ${user.name || ""},</p>
 
-Please login and change your password immediately.
+        <p style="color:#555;">
+          We received a request to reset your password.
+        </p>
 
-— Khushbu Mart`
+        <a href="${resetLink}"
+           style="display:inline-block;
+                  padding:12px 20px;
+                  background-color:#28a745;
+                  color:#ffffff;
+                  text-decoration:none;
+                  border-radius:5px;
+                  margin:20px 0;">
+          Reset Password
+        </a>
+
+        <p style="color:#888; font-size:14px;">
+          This link will expire in 15 minutes.
+        </p>
+
+        <p style="color:#888; font-size:13px;">
+          If you did not request this, please ignore this email.
+        </p>
+
+        <hr style="margin:25px 0;" />
+
+        <!-- Logo at the End -->
+        <div style="margin-top:20px;">
+          <img src="${logoUrl}"
+               alt="Khushbu Mart"
+               width="140"
+               style="display:block; margin:0 auto;" />
+        </div>
+
+        <p style="font-size:12px; color:#aaa; margin-top:10px;">
+          © ${new Date().getFullYear()} Khushbu Mart
+        </p>
+
+      </div>
+    </div>
+  `,
       });
     }
 
-    res.json({
-      message: 'Password reset successfully',
-      remainingAttempts: 1 - requestCount,
-      emailSent: !!user.email
+    return res.json({
+      message: "Reset link sent successfully",
+      remainingAttempts: 2 - (requestCount + 1),
+      emailSent: !!user.email,
     });
-
   } catch (error) {
     next(error);
   }
