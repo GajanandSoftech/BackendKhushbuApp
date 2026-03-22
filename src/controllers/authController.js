@@ -2,6 +2,8 @@ const { supabase } = require("../config/supabase");
 const crypto = require("crypto");
 const bcrypt = require("bcryptjs");
 const { generateToken } = require("../utils/jwt");
+const { Resend } = require("resend");
+const resend = new Resend(process.env.RESEND_API_KEY);
 
 // Register new user
 const register = async (req, res, next) => {
@@ -39,6 +41,99 @@ const register = async (req, res, next) => {
 
     // Generate token
     const token = generateToken(user.id, user.role);
+
+    const userAgent = req.headers["user-agent"] || "";
+
+    let platform = "ios";
+
+    if (/Android/i.test(userAgent)) {
+      platform = "android";
+    } else if (/iPhone|iPad|iOS/i.test(userAgent)) {
+      platform = "ios";
+    }
+
+    // 📧 Send Welcome Email
+    if (user.email) {
+      const logoUrl = "https://khushbumart.in/pwa-512x512.png";
+
+      const reviewLink =
+        platform === "ios"
+          ? "https://apps.apple.com/in/app/khushbu-mart/id6758760045"
+          : "https://play.google.com/store/apps/details?id=com.anonymous.clientmobile";
+
+      const reviewText =
+        platform === "ios"
+          ? "Review us on the App Store"
+          : "Review us on the Play Store";
+
+      await resend.emails.send({
+        from: "Khushbu Mart <noreply@khushbumart.in>",
+        to: user.email,
+        subject: "Welcome to Khushbu Mart 🥦🍎",
+        html: `
+    <div style="font-family: Arial, sans-serif; background:#f4f4f4; padding:20px;">
+      <div style="max-width:500px; margin:auto; background:#ffffff; padding:30px; border-radius:8px; text-align:center;">
+
+        <h2 style="color:#28a745;">Welcome to Khushbu Mart 🥦🍎</h2>
+
+        <p style="color:#555;">Hello ${user.name || ""},</p>
+
+        <p style="color:#555;">
+          Thank you for registering with <b>Khushbu Mart</b>!
+        </p>
+
+        <p style="color:#555;">
+          You can now order fresh fruits 🍎 and vegetables 🥦 directly from our app,
+          delivered quickly to your doorstep.
+        </p>
+
+        <a href="https://khushbumart.in"
+           style="display:inline-block;
+                  padding:12px 20px;
+                  background-color:#28a745;
+                  color:#ffffff;
+                  text-decoration:none;
+                  border-radius:5px;
+                  margin:20px 0;">
+          Start Shopping
+        </a>
+
+        <hr style="margin:25px 0;" />
+
+        <p style="color:#555;">
+          Enjoying the app? We'd love your feedback ❤️
+        </p>
+
+        <a href="${reviewLink}"
+           style="display:inline-block;
+                  padding:10px 18px;
+                  background-color:#007bff;
+                  color:#ffffff;
+                  text-decoration:none;
+                  border-radius:5px;
+                  margin:10px 0;">
+          ${reviewText}
+        </a>
+
+        <hr style="margin:25px 0;" />
+
+        <!-- Logo -->
+        <div style="margin-top:20px;">
+          <img src="${logoUrl}"
+               alt="Khushbu Mart"
+               width="140"
+               style="display:block; margin:0 auto; border-radius:16%;" />
+        </div>
+
+        <p style="font-size:12px; color:#aaa; margin-top:10px;">
+          © ${new Date().getFullYear()} Khushbu Mart
+        </p>
+
+      </div>
+    </div>
+    `,
+      });
+    }
 
     res.status(201).json({
       message: "User registered successfully",
@@ -206,10 +301,6 @@ const deleteAccount = async (req, res, next) => {
     next(error);
   }
 };
-
-const { Resend } = require("resend");
-
-const resend = new Resend(process.env.RESEND_API_KEY);
 
 const forgotPassword = async (req, res, next) => {
   try {
