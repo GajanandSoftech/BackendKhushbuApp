@@ -42,29 +42,12 @@ const register = async (req, res, next) => {
     // Generate token
     const token = generateToken(user.id, user.role);
 
-    const userAgent = req.headers["user-agent"] || "";
-
-    let platform = "ios";
-
-    if (/Android/i.test(userAgent)) {
-      platform = "android";
-    } else if (/iPhone|iPad|iOS/i.test(userAgent)) {
-      platform = "ios";
-    }
-
     // 📧 Send Welcome Email
     if (user.email) {
       const logoUrl = "https://khushbumart.in/pwa-512x512.png";
 
-      const reviewLink =
-        platform === "ios"
-          ? "https://apps.apple.com/in/app/khushbu-mart/id6758760045"
-          : "https://play.google.com/store/apps/details?id=com.anonymous.clientmobile";
-
-      const reviewText =
-        platform === "ios"
-          ? "Review us on the App Store"
-          : "Review us on the Play Store";
+      const playStoreLink = "https://play.google.com/store/apps/details?id=com.anonymous.clientmobile";
+      const appStoreLink = "https://apps.apple.com/in/app/khushbu-mart/id6758760045";
 
       await resend.emails.send({
         from: "Khushbu Mart <noreply@khushbumart.in>",
@@ -87,7 +70,17 @@ const register = async (req, res, next) => {
           delivered quickly to your doorstep.
         </p>
 
-        <a href="https://khushbumart.in"
+        <p style="color:#888; font-size:13px; margin-top:15px; line-height:1.5;">
+  <b>Note:</b> If your account is inactive, please contact us on this number 
+  <a href="tel:+919904667665" style="color:#28a745; text-decoration:none;">
+    +91 99046 67665
+  </a> <a href="tel:+917043752207" style="color:#28a745; text-decoration:none;">
+    +91 70437 52207
+  </a> 
+  to activate your account.
+</p>
+
+        <a href="https://khushbumart.in/open-app"
            style="display:inline-block;
                   padding:12px 20px;
                   background-color:#28a745;
@@ -104,16 +97,31 @@ const register = async (req, res, next) => {
           Enjoying the app? We'd love your feedback ❤️
         </p>
 
-        <a href="${reviewLink}"
-           style="display:inline-block;
-                  padding:10px 18px;
-                  background-color:#007bff;
-                  color:#ffffff;
-                  text-decoration:none;
-                  border-radius:5px;
-                  margin:10px 0;">
-          ${reviewText}
-        </a>
+        <!-- Play Store Button -->
+      <a href="${playStoreLink}"
+         style="display:inline-block;
+                padding:12px 18px;
+                background-color:#28a745;
+                color:#ffffff;
+                text-decoration:none;
+                border-radius:5px;
+                margin:8px;">
+        📱 Review on Play Store
+      </a>
+
+      <br/>
+
+      <!-- App Store Button -->
+      <a href="${appStoreLink}"
+         style="display:inline-block;
+                padding:12px 18px;
+                background-color:#000000;
+                color:#ffffff;
+                text-decoration:none;
+                border-radius:5px;
+                margin:8px;">
+        🍎 Review on App Store
+      </a>
 
         <hr style="margin:25px 0;" />
 
@@ -125,8 +133,31 @@ const register = async (req, res, next) => {
                style="display:block; margin:0 auto; border-radius:16%;" />
         </div>
 
+        <div style="margin-top:20px; font-size:13px; color:#777; text-align:center;">
+  
+  <a href="https://khushbumart.in/privacy-policy"
+     style="color:#28a745; text-decoration:none; margin:0 5px;">
+    Privacy Policy
+  </a>
+
+  |
+
+  <a href="https://khushbumart.in/terms-and-conditions"
+     style="color:#28a745; text-decoration:none; margin:0 5px;">
+    Terms & Conditions
+  </a>
+
+  |
+
+  <a href="https://khushbumart.in/return-and-refund-policy"
+     style="color:#28a745; text-decoration:none; margin:0 5px;">
+    Return & Refund Policy
+  </a>
+
+</div>
+
         <p style="font-size:12px; color:#aaa; margin-top:10px;">
-          © ${new Date().getFullYear()} Khushbu Mart
+          © ${new Date().getFullYear()} Khushbu Mart. All rights reserved.
         </p>
 
       </div>
