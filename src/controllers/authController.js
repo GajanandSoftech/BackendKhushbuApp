@@ -52,10 +52,10 @@ const register = async (req, res, next) => {
       await resend.emails.send({
         from: "Khushbu Mart <noreply@khushbumart.in>",
         to: user.email,
-        subject: "Welcome to Khushbu Mart 🥦🍎",
+        subject: "Welcome to Khushbu Mart",
         html: `
-    <div style="font-family: Arial, sans-serif; background:#f4f4f4; padding:20px;">
-      <div style="max-width:500px; margin:auto; background:#ffffff; padding:30px; border-radius:8px; text-align:center;">
+    <div style="font-family: Arial, sans-serif; background:#f4f4f4;">
+      <div style="margin:auto; background:#ffffff; padding:30px; border-radius:8px; text-align:center;">
 
         <h2 style="color:#28a745;">Welcome to Khushbu Mart 🥦🍎</h2>
 
@@ -74,7 +74,7 @@ const register = async (req, res, next) => {
   <b>Note:</b> If your account is inactive, please contact us on this number 
   <a href="tel:+919904667665" style="color:#28a745; text-decoration:none;">
     +91 99046 67665
-  </a> <a href="tel:+917043752207" style="color:#28a745; text-decoration:none;">
+  </a>, <a href="tel:+917043752207" style="color:#28a745; text-decoration:none;">
     +91 70437 52207
   </a> 
   to activate your account.
@@ -133,7 +133,7 @@ const register = async (req, res, next) => {
                style="display:block; margin:0 auto; border-radius:16%;" />
         </div>
 
-        <div style="margin-top:20px; font-size:13px; color:#777; text-align:center;">
+        <div style="margin-top:20px; font-size:12px; color:#777; text-align:center;">
   
   <a href="https://khushbumart.in/privacy-policy"
      style="color:#28a745; text-decoration:none; margin:0 5px;">
