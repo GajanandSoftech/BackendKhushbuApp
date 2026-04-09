@@ -19,7 +19,6 @@ const formatProductWithVariants = (product) => {
     category_id: product.category_id,
     subcategory_id: product.subcategory_id,
 
-    // ✅ USE VARIANT IMAGE FIRST
     image_url: defaultVariant?.image_url || product.image_url || null,
 
     rating: product.rating || 0,
@@ -141,16 +140,12 @@ const getAllProducts = async (req, res, next) => {
 const getProductById = async (req, res, next) => {
   try {
     const { id } = req.params;
-    console.log("🔍 getProductById called with id:", id); // LOG 1
 
     if (!id) {
-      console.log("❌ No ID provided");
       return res
         .status(400)
         .json({ success: false, error: "Product ID is required" });
     }
-
-    console.log("📡 Querying Supabase for product:", id); // LOG 2
 
     const { data: product, error } = await supabase
       .from("products")
@@ -175,17 +170,13 @@ const getProductById = async (req, res, next) => {
       .eq("id", id)
       .single();
 
-    console.log("✅ Supabase response:", { product, error }); // LOG 3
-
     if (error || !product) {
-      console.log("❌ Product not found. Error:", error);
       return res
         .status(404)
         .json({ success: false, error: "Product not found" });
     }
 
     const formattedProduct = formatProductWithVariants(product);
-    console.log("✅ Formatted product:", formattedProduct); // LOG 4
 
     return res.status(200).json({
       success: true,
@@ -197,175 +188,6 @@ const getProductById = async (req, res, next) => {
       success: false,
       error: error.message || "Failed to fetch product",
     });
-  }
-};
-
-// Create product (Admin only)
-const createProduct = async (req, res, next) => {
-  try {
-    const {
-      name,
-      description,
-      category_id,
-      subcategory_id,
-      image_url,
-      variants, // Array of variant objects
-    } = req.body;
-
-    // Create product first
-    const { data: product, error: productError } = await supabase
-      .from("products")
-      .insert({
-        name,
-        description,
-        category_id,
-        subcategory_id,
-        image_url,
-        is_active: true,
-      })
-      .select()
-      .single();
-
-    if (productError) throw productError;
-
-    // Create variants if provided
-    if (variants && variants.length > 0) {
-      const variantData = variants.map((v, index) => ({
-  product_id: product.id,
-  price: v.price,
-  original_price: v.original_price || null,
-  weight: v.weight,
-  unit: v.unit || 'pc',
-  image_url: v.image_url || null, // ✅ ADD THIS
-  is_default: v.is_default || index === 0,
-  is_active: true
-}));
-
-
-      const { error: variantError } = await supabase
-        .from("product_variants")
-        .insert(variantData);
-
-      if (variantError) throw variantError;
-    }
-
-    // Fetch complete product with variants
-    const { data: completeProduct } = await supabase
-      .from("products")
-      .select(
-        `
-        *,
-        product_variants(*)
-      `
-      )
-      .eq("id", product.id)
-      .single();
-
-    res.status(201).json({
-      message: "Product created successfully",
-      product: formatProductWithVariants(completeProduct),
-    });
-  } catch (error) {
-    next(error);
-  }
-};
-
-// Update product (Admin only)
-const updateProduct = async (req, res, next) => {
-  try {
-    const { id } = req.params;
-    const {
-      name,
-      description,
-      category_id,
-      subcategory_id,
-      image_url,
-      variants,
-    } = req.body;
-
-    // Update product basic info
-    const productUpdateData = {};
-    if (name) productUpdateData.name = name;
-    if (description !== undefined) productUpdateData.description = description;
-    if (category_id) productUpdateData.category_id = category_id;
-    if (subcategory_id !== undefined)
-      productUpdateData.subcategory_id = subcategory_id;
-    if (image_url !== undefined) productUpdateData.image_url = image_url;
-    productUpdateData.updated_at = new Date().toISOString();
-
-    const { data: product, error: productError } = await supabase
-      .from("products")
-      .update(productUpdateData)
-      .eq("id", id)
-      .select()
-      .single();
-
-    if (productError) throw productError;
-
-    // Update variants if provided
-    if (variants && Array.isArray(variants)) {
-      // Delete existing variants
-      await supabase.from("product_variants").delete().eq("product_id", id);
-
-      // Insert new variants
-      if (variants.length > 0) {
-        const variantData = variants.map((v, index) => ({
-  product_id: product.id,
-  price: v.price,
-  original_price: v.original_price || null,
-  weight: v.weight,
-  unit: v.unit || 'pc',
-  image_url: v.image_url || null, // ✅ ADD THIS
-  is_default: v.is_default || index === 0,
-  is_active: true
-}));
-
-
-        const { error: variantError } = await supabase
-          .from("product_variants")
-          .insert(variantData);
-
-        if (variantError) throw variantError;
-      }
-    }
-
-    // Fetch complete updated product
-    const { data: updatedProduct } = await supabase
-      .from("products")
-      .select(
-        `
-        *,
-        product_variants(*)
-      `
-      )
-      .eq("id", id)
-      .single();
-
-    res.json({
-      message: "Product updated successfully",
-      product: formatProductWithVariants(updatedProduct),
-    });
-  } catch (error) {
-    next(error);
-  }
-};
-
-// Delete product (Admin only)
-const deleteProduct = async (req, res, next) => {
-  try {
-    const { id } = req.params;
-
-    // Soft delete
-    const { error } = await supabase
-      .from("products")
-      .update({ is_active: false, updated_at: new Date().toISOString() })
-      .eq("id", id);
-
-    if (error) throw error;
-
-    res.json({ message: "Product deleted successfully" });
-  } catch (error) {
-    next(error);
   }
 };
 
@@ -416,7 +238,10 @@ const searchProducts = async (req, res, next) => {
     const rawLimit = parseInt(req.query.limit, 10);
     const DEFAULT_LIMIT = 10;
     const MAX_LIMIT = 10;
-    const limit = Number.isInteger(rawLimit) && rawLimit > 0 ? Math.min(rawLimit, MAX_LIMIT) : DEFAULT_LIMIT;
+    const limit =
+      Number.isInteger(rawLimit) && rawLimit > 0
+        ? Math.min(rawLimit, MAX_LIMIT)
+        : DEFAULT_LIMIT;
 
     if (!q) {
       return res.status(400).json({ error: "Search query required" });
@@ -459,9 +284,6 @@ const searchProducts = async (req, res, next) => {
 module.exports = {
   getAllProducts,
   getProductById,
-  createProduct,
-  updateProduct,
-  deleteProduct,
   getFeaturedProducts,
   searchProducts,
 };

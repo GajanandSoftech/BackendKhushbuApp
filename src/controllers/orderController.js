@@ -1,6 +1,5 @@
 const { supabase } = require('../config/supabase');
 
-// Lightweight fetch helper (works with Node 18+ global fetch or falls back to node-fetch)
 const doFetch = (...args) => {
   if (typeof fetch === 'function') return fetch(...args);
   return import('node-fetch').then(({ default: f }) => f(...args));
@@ -139,9 +138,13 @@ const createOrder = async (req, res, next) => {
     try {
       const webhookUrl = process.env.ADMIN_ORDER_WEBHOOK_URL;
       if (webhookUrl) {
+        const webhookSecret = process.env.ADMIN_ORDER_WEBHOOK_SECRET;
         await doFetch(webhookUrl, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+            ...(webhookSecret ? { 'x-webhook-secret': webhookSecret } : {}),
+          },
           body: JSON.stringify({ order: orderPayload })
         });
       }
